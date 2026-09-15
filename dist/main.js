@@ -4,13 +4,15 @@ require("reflect-metadata");
 const core_1 = require("@nestjs/core");
 const common_1 = require("@nestjs/common");
 const swagger_1 = require("@nestjs/swagger");
+const path_1 = require("path");
 const app_module_1 = require("./app.module");
 async function bootstrap() {
     const app = await core_1.NestFactory.create(app_module_1.AppModule);
+    app.useStaticAssets((0, path_1.join)(process.cwd(), 'uploads'), { prefix: '/uploads/' });
     const corsOrigin = process.env.CORS_ORIGIN;
     const allowedOrigins = corsOrigin
-        ? corsOrigin.split(',').map((origin) => origin.trim()).filter(Boolean)
-        : ['http://localhost:3000', 'https://yourdomain.com'];
+        ? corsOrigin.split(',').map((origin) => origin.trim().replace(/\/+$/, '')).filter(Boolean)
+        : ['http://localhost:3000', 'https://alnuzha.ae', 'https://www.alnuzha.ae'];
     app.setGlobalPrefix('api/v1');
     app.enableCors({
         origin: allowedOrigins,
@@ -34,6 +36,7 @@ async function bootstrap() {
         .addTag('invoices', 'Billing & invoices')
         .addTag('technicians', 'Staff management')
         .addTag('services-catalogue', 'Services offered')
+        .addTag('services', 'Services with thumbnail images')
         .addTag('reviews', 'Customer reviews')
         .addTag('notifications', 'Notification log')
         .build();

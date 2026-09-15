@@ -8,7 +8,10 @@
     "start:dev": "ts-node -r tsconfig-paths/register src/main.ts",
     "start:prod": "node dist/main",
     "seed:users": "ts-node -r tsconfig-paths/register src/database/user-seeder.ts",
-    "seed:jobs": "ts-node -r tsconfig-paths/register src/database/job-seeder.ts"
+    "seed:jobs": "ts-node -r tsconfig-paths/register src/database/job-seeder.ts",
+    "migration:run": "typeorm migration:run -d dist/database/data-source.js",
+    "migration:revert": "typeorm migration:revert -d dist/database/data-source.js",
+    "migration:show": "typeorm migration:show -d dist/database/data-source.js"
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",

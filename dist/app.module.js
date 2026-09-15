@@ -8,6 +8,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AppModule = void 0;
 const common_1 = require("@nestjs/common");
+const path_1 = require("path");
 const config_1 = require("@nestjs/config");
 const typeorm_1 = require("@nestjs/typeorm");
 const auth_module_1 = require("./auth/auth.module");
@@ -21,6 +22,7 @@ const services_catalogue_module_1 = require("./services-catalogue/services-catal
 const reviews_module_1 = require("./reviews/reviews.module");
 const notifications_module_1 = require("./notifications/notifications.module");
 const dashboard_module_1 = require("./dashboard/dashboard.module");
+const services_module_1 = require("./services/services.module");
 const health_controller_1 = require("./health/health.controller");
 let AppModule = class AppModule {
 };
@@ -41,6 +43,8 @@ exports.AppModule = AppModule = __decorate([
                     autoLoadEntities: true,
                     synchronize: config.get('NODE_ENV') !== 'production',
                     logging: config.get('NODE_ENV') === 'development',
+                    migrations: [(0, path_1.join)(__dirname, 'database', 'migrations', `*${(0, path_1.extname)(__filename)}`)],
+                    migrationsRun: config.get('NODE_ENV') === 'production',
                 }),
                 inject: [config_1.ConfigService],
             }),
@@ -55,6 +59,7 @@ exports.AppModule = AppModule = __decorate([
             reviews_module_1.ReviewsModule,
             notifications_module_1.NotificationsModule,
             dashboard_module_1.DashboardModule,
+            services_module_1.ServicesModule,
         ],
         controllers: [health_controller_1.HealthController],
     })

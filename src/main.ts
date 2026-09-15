@@ -2,10 +2,15 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { join } from 'path';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Uploaded files (service thumbnails) served at /uploads/...
+  app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads/' });
   const corsOrigin = process.env.CORS_ORIGIN;
   const allowedOrigins = corsOrigin
     ? corsOrigin.split(',').map((origin) => origin.trim().replace(/\/+$/, '')).filter(Boolean)
@@ -43,6 +48,7 @@ async function bootstrap() {
     .addTag('invoices', 'Billing & invoices')
     .addTag('technicians', 'Staff management')
     .addTag('services-catalogue', 'Services offered')
+    .addTag('services', 'Services with thumbnail images')
     .addTag('reviews', 'Customer reviews')
     .addTag('notifications', 'Notification log')
     .build();

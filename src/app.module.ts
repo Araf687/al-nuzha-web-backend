@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { join, extname } from 'path';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
@@ -12,6 +13,7 @@ import { ServicesCatalogueModule } from './services-catalogue/services-catalogue
 import { ReviewsModule } from './reviews/reviews.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { ServicesModule } from './services/services.module';
 import { HealthController } from './health/health.controller';
 
 @Module({
@@ -30,6 +32,10 @@ import { HealthController } from './health/health.controller';
         autoLoadEntities: true,
         synchronize: config.get('NODE_ENV') !== 'production', // disable in prod!
         logging: config.get('NODE_ENV') === 'development',
+        // Production schema changes come from migrations, applied automatically on startup.
+        // extname(__filename) picks .ts (ts-node) or .js (dist) so dist/*.d.ts files are not loaded.
+        migrations: [join(__dirname, 'database', 'migrations', `*${extname(__filename)}`)],
+        migrationsRun: config.get('NODE_ENV') === 'production',
       }),
       inject: [ConfigService],
     }),
@@ -45,6 +51,7 @@ import { HealthController } from './health/health.controller';
     ReviewsModule,
     NotificationsModule,
     DashboardModule,
+    ServicesModule,
   ],
   controllers: [HealthController],
 })

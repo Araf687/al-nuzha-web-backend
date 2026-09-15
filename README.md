@@ -573,6 +573,33 @@ feature/
 - TypeORM with `synchronize: true` in dev auto-creates tables from entities
 - **NEVER enable in production** (risk of data loss)
 
+### Migrations (production)
+Production (`NODE_ENV=production`) has `synchronize` off, so schema changes ship as migrations in
+`src/database/migrations/`. They run **automatically when the app starts** in production
+(`migrationsRun`), and can also be run by hand:
+
+```bash
+npm run build              # migrations run from dist/
+npm run migration:show     # list applied [X] / pending [ ] migrations
+npm run migration:run      # apply pending migrations
+npm run migration:revert   # undo the last applied migration
+```
+
+`CreateServicesTable` creates the `services` table (title, startingPrice, isCustomQuote, priority,
+thumbnail) or upgrades an older copy of it, so it is safe on any existing database.
+
+### Deploying an update
+1. Pull the new code on the server
+2. `npm install`
+3. `npm run build`
+4. Make sure the server env has `NODE_ENV=production` and `CORS_ORIGIN` includes the website origins
+   (e.g. `https://www.alnuzha.ae,https://alnuzha.ae`)
+5. Restart the app (e.g. `pm2 restart <app>`) — pending migrations run on startup
+6. Check: `curl https://api.alnuzha.ae/api/v1/health` and `/api/v1/services`
+
+Uploaded images live in `uploads/` next to the app. Keep that folder on persistent storage (not wiped by
+redeploys) and allow bodies of at least 5 MB in any reverse proxy (nginx: `client_max_body_size 5M;`).
+
 ### Key Relations
 ```
 Customer
