@@ -12,6 +12,7 @@ import { ServicesCatalogueModule } from './services-catalogue/services-catalogue
 import { ReviewsModule } from './reviews/reviews.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { HealthController } from './health/health.controller';
 
 @Module({
   imports: [
@@ -45,5 +46,6 @@ import { DashboardModule } from './dashboard/dashboard.module';
     NotificationsModule,
     DashboardModule,
   ],
+  controllers: [HealthController],
 })
 export class AppModule {}

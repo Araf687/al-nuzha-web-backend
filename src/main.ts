@@ -8,8 +8,8 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const corsOrigin = process.env.CORS_ORIGIN;
   const allowedOrigins = corsOrigin
-    ? corsOrigin.split(',').map((origin) => origin.trim()).filter(Boolean)
-    : ['http://localhost:3000', 'https://yourdomain.com'];
+    ? corsOrigin.split(',').map((origin) => origin.trim().replace(/\/+$/, '')).filter(Boolean)
+    : ['http://localhost:3000', 'https://alnuzha.ae', 'https://www.alnuzha.ae'];
 
   // Global prefix
   app.setGlobalPrefix('api/v1');
