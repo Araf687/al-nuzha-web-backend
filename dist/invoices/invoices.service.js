@@ -47,6 +47,36 @@ let InvoicesService = class InvoicesService {
         inv.paidAt = new Date();
         return this.repo.save(inv);
     }
+    async updatePayment(id, dto) {
+        const inv = await this.findOne(id);
+        const totalCents = Math.round(Number(inv.total) * 100);
+        switch (dto.paymentStatus) {
+            case invoice_entity_1.PaymentStatus.PAID:
+                if (inv.paymentStatus !== invoice_entity_1.PaymentStatus.PAID || !inv.paidAt)
+                    inv.paidAt = new Date();
+                break;
+            case invoice_entity_1.PaymentStatus.PARTIAL: {
+                const paidCents = Math.round(Number(dto.amountPaid) * 100);
+                if (!Number.isFinite(paidCents) || paidCents <= 0) {
+                    throw new common_1.BadRequestException('amountPaid is required for a partial payment');
+                }
+                if (paidCents >= totalCents) {
+                    throw new common_1.BadRequestException('amountPaid covers the full total — mark the invoice as paid instead');
+                }
+                inv.advanceAmount = paidCents / 100;
+                inv.paidAt = null;
+                break;
+            }
+            case invoice_entity_1.PaymentStatus.UNPAID:
+                inv.advanceAmount = 0;
+                inv.paidAt = null;
+                break;
+        }
+        inv.paymentStatus = dto.paymentStatus;
+        if (dto.paymentMethod)
+            inv.paymentMethod = dto.paymentMethod;
+        return this.repo.save(inv);
+    }
     async getRevenueSummary() {
         return this.repo
             .createQueryBuilder('inv')

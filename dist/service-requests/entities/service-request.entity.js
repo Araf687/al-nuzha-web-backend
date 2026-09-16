@@ -18,6 +18,7 @@ var RequestSource;
 (function (RequestSource) {
     RequestSource["PHONE"] = "phone";
     RequestSource["WEBSITE"] = "website";
+    RequestSource["ADMIN"] = "admin";
 })(RequestSource || (exports.RequestSource = RequestSource = {}));
 var RequestStatus;
 (function (RequestStatus) {

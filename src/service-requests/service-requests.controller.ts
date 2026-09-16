@@ -8,7 +8,7 @@ import {
 } from 'class-validator';
 import { ServiceRequestsService } from './service-requests.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { RequestStatus } from './entities/service-request.entity';
+import { RequestStatus, RequestSource } from './entities/service-request.entity';
 
 class CreateServiceRequestDto {
   @IsString() name: string;
@@ -22,7 +22,7 @@ class CreateServiceRequestDto {
   @IsOptional() @IsNumber() lat?: number;
   @IsOptional() @IsNumber() lng?: number;
   @IsOptional() @IsString() preferredTime?: string;
-  @IsOptional() @IsString() source?: string;
+  @IsOptional() @IsEnum(RequestSource) source?: RequestSource;
   @IsOptional() @IsString() technicianId?: string;
 }
 

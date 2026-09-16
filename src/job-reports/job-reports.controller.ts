@@ -1,8 +1,9 @@
 import { Controller, Get, Post, Body, Param, UseGuards, Request } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { IsString, IsNumber, IsOptional, IsArray, IsIn } from 'class-validator';
+import { IsString, IsNumber, IsOptional, IsArray, IsIn, IsEnum } from 'class-validator';
 import { JobReportsService } from './job-reports.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { RequestSource } from '../service-requests/entities/service-request.entity';
 
 class JobPartDto {
   @IsOptional() @IsString() partId?: string;
@@ -47,7 +48,7 @@ class SubmitInstantJobDto extends SubmitJobReportDto {
   @IsOptional() @IsNumber() lat?: number;
   @IsOptional() @IsNumber() lng?: number;
   @IsOptional() @IsString() preferredTime?: string;
-  @IsOptional() @IsString() source?: string;
+  @IsOptional() @IsEnum(RequestSource) source?: RequestSource;
 }
 
 @ApiTags('job-reports')

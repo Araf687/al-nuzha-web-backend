@@ -12,12 +12,14 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.InvoicesController = void 0;
+exports.InvoicesController = exports.UpdatePaymentDto = void 0;
 const common_1 = require("@nestjs/common");
 const swagger_1 = require("@nestjs/swagger");
 const class_validator_1 = require("class-validator");
 const invoices_service_1 = require("./invoices.service");
 const jwt_auth_guard_1 = require("../common/guards/jwt-auth.guard");
+const roles_guard_1 = require("../common/guards/roles.guard");
+const roles_decorator_1 = require("../common/decorators/roles.decorator");
 const invoice_entity_1 = require("./entities/invoice.entity");
 class MarkPaidDto {
 }
@@ -25,6 +27,24 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], MarkPaidDto.prototype, "paymentMethod", void 0);
+class UpdatePaymentDto {
+}
+exports.UpdatePaymentDto = UpdatePaymentDto;
+__decorate([
+    (0, class_validator_1.IsEnum)(invoice_entity_1.PaymentStatus),
+    __metadata("design:type", String)
+], UpdatePaymentDto.prototype, "paymentStatus", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.Min)(0),
+    __metadata("design:type", Number)
+], UpdatePaymentDto.prototype, "amountPaid", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], UpdatePaymentDto.prototype, "paymentMethod", void 0);
 let InvoicesController = class InvoicesController {
     constructor(svc) {
         this.svc = svc;
@@ -35,6 +55,9 @@ let InvoicesController = class InvoicesController {
     findOne(id) { return this.svc.findOne(id); }
     markPaid(id, dto) {
         return this.svc.markPaid(id, dto.paymentMethod);
+    }
+    updatePayment(id, dto) {
+        return this.svc.updatePayment(id, dto);
     }
 };
 exports.InvoicesController = InvoicesController;
@@ -71,17 +94,28 @@ __decorate([
 ], InvoicesController.prototype, "findOne", null);
 __decorate([
     (0, common_1.Patch)(':id/mark-paid'),
-    (0, swagger_1.ApiOperation)({ summary: 'Mark invoice as paid' }),
+    (0, roles_decorator_1.Roles)('admin'),
+    (0, swagger_1.ApiOperation)({ summary: 'Mark invoice as paid (admin only)' }),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, MarkPaidDto]),
     __metadata("design:returntype", void 0)
 ], InvoicesController.prototype, "markPaid", null);
+__decorate([
+    (0, common_1.Patch)(':id/payment'),
+    (0, roles_decorator_1.Roles)('admin'),
+    (0, swagger_1.ApiOperation)({ summary: 'Update invoice payment status — paid, partial (with amount) or unpaid (admin only)' }),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, UpdatePaymentDto]),
+    __metadata("design:returntype", void 0)
+], InvoicesController.prototype, "updatePayment", null);
 exports.InvoicesController = InvoicesController = __decorate([
     (0, swagger_1.ApiTags)('invoices'),
     (0, common_1.Controller)('invoices'),
-    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
     (0, swagger_1.ApiBearerAuth)(),
     __metadata("design:paramtypes", [invoices_service_1.InvoicesService])
 ], InvoicesController);

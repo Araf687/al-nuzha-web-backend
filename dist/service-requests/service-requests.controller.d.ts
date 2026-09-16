@@ -1,5 +1,5 @@
 import { ServiceRequestsService } from './service-requests.service';
-import { RequestStatus } from './entities/service-request.entity';
+import { RequestStatus, RequestSource } from './entities/service-request.entity';
 declare class CreateServiceRequestDto {
     name: string;
     phone: string;
@@ -12,7 +12,7 @@ declare class CreateServiceRequestDto {
     lat?: number;
     lng?: number;
     preferredTime?: string;
-    source?: string;
+    source?: RequestSource;
     technicianId?: string;
 }
 declare class RecurringRequestDto {

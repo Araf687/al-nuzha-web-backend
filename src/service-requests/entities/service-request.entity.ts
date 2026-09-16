@@ -6,7 +6,7 @@ import { Customer } from '../../customers/entities/customer.entity';
 import { Technician } from '../../technicians/entities/technician.entity';
 import { JobReport } from '../../job-reports/entities/job-report.entity';
 
-export enum RequestSource { PHONE = 'phone', WEBSITE = 'website' }
+export enum RequestSource { PHONE = 'phone', WEBSITE = 'website', ADMIN = 'admin' }
 export enum RequestStatus {
   PENDING = 'pending',
   ASSIGNED = 'assigned',

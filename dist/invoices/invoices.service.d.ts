@@ -7,5 +7,10 @@ export declare class InvoicesService {
     findByCustomer(customerId: string): Promise<Invoice[]>;
     findOne(id: string): Promise<Invoice>;
     markPaid(id: string, method: string): Promise<Invoice>;
+    updatePayment(id: string, dto: {
+        paymentStatus: PaymentStatus;
+        amountPaid?: number;
+        paymentMethod?: string;
+    }): Promise<Invoice>;
     getRevenueSummary(): Promise<any[]>;
 }

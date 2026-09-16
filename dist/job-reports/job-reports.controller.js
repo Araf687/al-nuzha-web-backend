@@ -18,6 +18,7 @@ const swagger_1 = require("@nestjs/swagger");
 const class_validator_1 = require("class-validator");
 const job_reports_service_1 = require("./job-reports.service");
 const jwt_auth_guard_1 = require("../common/guards/jwt-auth.guard");
+const service_request_entity_1 = require("../service-requests/entities/service-request.entity");
 class JobPartDto {
 }
 __decorate([
@@ -163,7 +164,7 @@ __decorate([
 ], SubmitInstantJobDto.prototype, "preferredTime", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsEnum)(service_request_entity_1.RequestSource),
     __metadata("design:type", String)
 ], SubmitInstantJobDto.prototype, "source", void 0);
 let JobReportsController = class JobReportsController {

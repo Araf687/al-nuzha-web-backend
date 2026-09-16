@@ -73,7 +73,7 @@ __decorate([
 ], CreateServiceRequestDto.prototype, "preferredTime", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsEnum)(service_request_entity_1.RequestSource),
     __metadata("design:type", String)
 ], CreateServiceRequestDto.prototype, "source", void 0);
 __decorate([

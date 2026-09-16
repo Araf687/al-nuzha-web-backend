@@ -1,4 +1,5 @@
 import { JobReportsService } from './job-reports.service';
+import { RequestSource } from '../service-requests/entities/service-request.entity';
 declare class JobPartDto {
     partId?: string;
     customPartName?: string;
@@ -38,7 +39,7 @@ declare class SubmitInstantJobDto extends SubmitJobReportDto {
     lat?: number;
     lng?: number;
     preferredTime?: string;
-    source?: string;
+    source?: RequestSource;
 }
 export declare class JobReportsController {
     private svc;

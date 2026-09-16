@@ -3,6 +3,11 @@ import { PaymentStatus } from './entities/invoice.entity';
 declare class MarkPaidDto {
     paymentMethod: string;
 }
+export declare class UpdatePaymentDto {
+    paymentStatus: PaymentStatus;
+    amountPaid?: number;
+    paymentMethod?: string;
+}
 export declare class InvoicesController {
     private svc;
     constructor(svc: InvoicesService);
@@ -11,5 +16,6 @@ export declare class InvoicesController {
     revenue(): Promise<any[]>;
     findOne(id: string): Promise<import("./entities/invoice.entity").Invoice>;
     markPaid(id: string, dto: MarkPaidDto): Promise<import("./entities/invoice.entity").Invoice>;
+    updatePayment(id: string, dto: UpdatePaymentDto): Promise<import("./entities/invoice.entity").Invoice>;
 }
 export {};

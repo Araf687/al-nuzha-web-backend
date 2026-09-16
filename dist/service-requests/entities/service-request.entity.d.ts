@@ -3,7 +3,8 @@ import { Technician } from '../../technicians/entities/technician.entity';
 import { JobReport } from '../../job-reports/entities/job-report.entity';
 export declare enum RequestSource {
     PHONE = "phone",
-    WEBSITE = "website"
+    WEBSITE = "website",
+    ADMIN = "admin"
 }
 export declare enum RequestStatus {
     PENDING = "pending",
