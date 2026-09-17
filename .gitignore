@@ -1,0 +1,19 @@
+# Build output — built on the server with `npm run build`
+dist/
+tsconfig.tsbuildinfo
+
+# Dependencies — installed on the server with `npm install`
+node_modules/
+
+# Environment — each environment keeps its own .env (see .env.example)
+.env
+.env.*
+!.env.example
+
+# User-uploaded files live on the server, not in git
+uploads/*
+!uploads/.gitkeep
+
+# Logs / OS
+*.log
+.DS_Store

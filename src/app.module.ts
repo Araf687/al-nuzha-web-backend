@@ -36,6 +36,8 @@ import { HealthController } from './health/health.controller';
         // extname(__filename) picks .ts (ts-node) or .js (dist) so dist/*.d.ts files are not loaded.
         migrations: [join(__dirname, 'database', 'migrations', `*${extname(__filename)}`)],
         migrationsRun: config.get('NODE_ENV') === 'production',
+        // Each migration in its own transaction, so one can opt out (enum ADD VALUE needs that)
+        migrationsTransactionMode: 'each',
       }),
       inject: [ConfigService],
     }),

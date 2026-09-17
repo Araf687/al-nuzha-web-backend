@@ -36,4 +36,5 @@ export default new DataSource({
   // .ts under ts-node, .js in dist — never the dist/*.d.ts files
   entities: [join(__dirname, '..', '**', `*.entity${extname(__filename)}`)],
   migrations: [join(__dirname, 'migrations', `*${extname(__filename)}`)],
+  migrationsTransactionMode: 'each',
 });
