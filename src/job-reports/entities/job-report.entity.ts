@@ -22,7 +22,7 @@ export class JobReport {
   @ManyToOne(() => Technician, (t) => t.jobReports, { eager: true })
   technician: Technician;
 
-  @Column()
+  @Column({ nullable: true })
   faultFound: string;
 
   @Column('text', { nullable: true })

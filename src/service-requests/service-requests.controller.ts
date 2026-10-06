@@ -14,8 +14,8 @@ class CreateServiceRequestDto {
   @IsString() name: string;
   @IsString() phone: string;
   @IsString() serviceType: string;
-  @IsString() problemDescription: string;
-  @IsString() address: string;
+  @IsOptional() @IsString() problemDescription?: string;
+  @IsOptional() @IsString() address?: string;
   @IsOptional() @IsString() equipmentType?: string;
   @IsOptional() @IsString() equipmentBrand?: string;
   @IsOptional() @IsString() equipmentModel?: string;

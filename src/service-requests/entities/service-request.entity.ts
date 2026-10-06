@@ -38,10 +38,11 @@ export class ServiceRequest {
   @Column({ nullable: true })
   equipmentModel: string;
 
-  @Column('text')
+  @Column('text', { nullable: true })
   problemDescription: string;
 
-  @Column()
+  // Falls back to the customer's saved address when a job is created without one
+  @Column({ nullable: true })
   address: string;
 
   @Column('decimal', { precision: 10, scale: 7, nullable: true })

@@ -1,5 +1,6 @@
 import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
@@ -14,7 +15,19 @@ export class AuthService {
     @InjectRepository(Technician)
     private techniciansRepo: Repository<Technician>,
     private jwtService: JwtService,
+    private config: ConfigService,
   ) {}
+
+  // App version info for the mobile app, straight from the environment:
+  // APP_VERSION_VC, APP_VERSION_URL, APP_VERSION_URL_TYPE
+  private appVersion() {
+    const vc = Number(this.config.get('APP_VERSION_VC'));
+    return {
+      vc: Number.isFinite(vc) ? vc : 0,
+      url: this.config.get('APP_VERSION_URL', ''),
+      urlType: this.config.get('APP_VERSION_URL_TYPE', ''),
+    };
+  }
 
   // ── Customer register ──────────────────────────────────────────────────────
   async registerCustomer(data: { name: string; phone: string; email?: string; password: string }) {
@@ -66,6 +79,7 @@ export class AuthService {
     return {
       accessToken: this.jwtService.sign(payload),
       user: { id: customer.id, name: customer.name, phone: customer.phone, role: 'customer' },
+      appVersion: this.appVersion(),
     };
   }
 
@@ -74,6 +88,7 @@ export class AuthService {
     return {
       accessToken: this.jwtService.sign(payload),
       user: { id: tech.id, name: tech.name, phone: tech.phone, role: tech.role },
+      appVersion: this.appVersion(),
     };
   }
 }

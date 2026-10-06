@@ -24,7 +24,7 @@ class JobExpenseDto {
 }
 
 class SubmitJobReportDto {
-  @IsString() faultFound: string;
+  @IsOptional() @IsString() faultFound?: string;
   @IsOptional() @IsString() diagnosisNotes?: string;
   @IsNumber() labourCharge: number;
   @IsIn(['card', 'cash', 'due']) paymentType: string;

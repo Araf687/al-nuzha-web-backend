@@ -50,6 +50,7 @@ async function bootstrap() {
     .addTag('services-catalogue', 'Services offered')
     .addTag('services', 'Services with thumbnail images')
     .addTag('reviews', 'Customer reviews')
+    .addTag('fuel-logs', 'Car fuel refills — litres, cost, date')
     .addTag('notifications', 'Notification log')
     .build();
 
