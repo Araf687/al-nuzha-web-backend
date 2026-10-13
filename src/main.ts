@@ -11,10 +11,20 @@ async function bootstrap() {
 
   // Uploaded files (service thumbnails) served at /uploads/...
   app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads/' });
-  const corsOrigin = process.env.CORS_ORIGIN;
-  const allowedOrigins = corsOrigin
-    ? corsOrigin.split(',').map((origin) => origin.trim().replace(/\/+$/, '')).filter(Boolean)
-    : ['http://localhost:3000', 'https://alnuzha.ae', 'https://www.alnuzha.ae'];
+  // The live site is always allowed, with and without www, so a missing or wrong
+  // CORS_ORIGIN can never block it. CORS_ORIGIN adds extra origins on top.
+  const ALWAYS_ALLOWED = [
+    'https://alnuzha.ae',
+    'https://www.alnuzha.ae',
+    'http://localhost:3000',-
+  ];
+
+  const extraOrigins = (process.env.CORS_ORIGIN ?? '')
+    .split(',')
+    .map((origin) => origin.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
+
+  const allowedOrigins = [...new Set([...ALWAYS_ALLOWED, ...extraOrigins])];
 
   // Global prefix
   app.setGlobalPrefix('api/v1');
