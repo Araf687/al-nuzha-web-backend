@@ -16,7 +16,7 @@ async function bootstrap() {
   const ALWAYS_ALLOWED = [
     'https://alnuzha.ae',
     'https://www.alnuzha.ae',
-    'http://localhost:3000',-
+    'http://localhost:3000',
   ];
 
   const extraOrigins = (process.env.CORS_ORIGIN ?? '')
