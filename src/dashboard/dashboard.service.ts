@@ -1,11 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Between, Repository } from 'typeorm';
 import { ServiceRequest, RequestStatus } from '../service-requests/entities/service-request.entity';
 import { Invoice, PaymentStatus } from '../invoices/entities/invoice.entity';
 import { JobReport } from '../job-reports/entities/job-report.entity';
 import { PartChallan } from '../parts/entities/challan.entity';
 import { Part } from '../parts/entities/part.entity';
+import { Expense } from '../expenses/entities/expense.entity';
+import { FuelLog } from '../fuel-logs/entities/fuel-log.entity';
 
 const num = (v: unknown) => {
   const n = Number(v ?? 0);
@@ -23,6 +25,8 @@ export class DashboardService {
     @InjectRepository(JobReport) private reportsRepo: Repository<JobReport>,
     @InjectRepository(PartChallan) private challansRepo: Repository<PartChallan>,
     @InjectRepository(Part) private partsRepo: Repository<Part>,
+    @InjectRepository(Expense) private expensesRepo: Repository<Expense>,
+    @InjectRepository(FuelLog) private fuelRepo: Repository<FuelLog>,
   ) {}
 
   /**
@@ -60,6 +64,9 @@ export class DashboardService {
       topTechnicians,
       lowStockCount,
       pendingReviewCount,
+      expenseAgg,
+      fuelAgg,
+      expenseRows,
     ] = await Promise.all([
       // ── Jobs grouped by status, within range ──────────────────────────
       this.requestsRepo
@@ -177,6 +184,37 @@ export class DashboardService {
         .getCount(),
 
       this.partsRepo.count({ where: { needsReview: true } }),
+
+      // ── Shop expenses, within range (spentAt is a DATE column) ────────
+      this.expensesRepo
+        .createQueryBuilder('e')
+        .select('COUNT(*)', 'entries')
+        .addSelect('COALESCE(SUM(e.cost), 0)', 'totalCost')
+        .where('e.spentAt BETWEEN :startDay AND :endDay', dayRange)
+        .getRawOne<{ entries: string; totalCost: string }>(),
+
+      // ── Fuel/petrol spend, within range (filledAt is a DATE column) ───
+      this.fuelRepo
+        .createQueryBuilder('f')
+        .select('COUNT(*)', 'refills')
+        .addSelect('COALESCE(SUM(f.cost), 0)', 'totalCost')
+        .addSelect('COALESCE(SUM(f.litres), 0)', 'totalLitres')
+        .where('f.filledAt BETWEEN :startDay AND :endDay', dayRange)
+        .getRawOne<{ refills: string; totalCost: string; totalLitres: string }>(),
+
+      // ── Expense list for the range (newest first) ─────────────────────
+      this.expensesRepo.find({
+        where: { spentAt: Between(startDay, endDay) },
+        relations: { technician: true },
+        // Explicit select — the technician relation otherwise carries passwordHash
+        select: {
+          id: true, cost: true, shopName: true, shopNumber: true,
+          description: true, spentAt: true, createdAt: true,
+          technician: { id: true, name: true },
+        },
+        order: { spentAt: 'DESC', createdAt: 'DESC' },
+        take: 10,
+      }),
     ]);
 
     // ── Fold job status rows ────────────────────────────────────────────
@@ -202,6 +240,11 @@ export class DashboardService {
       { spend: 0, partsAddedQty: 0 },
     );
 
+    const expenseTotal = money(expenseAgg?.totalCost);
+    const petrolTotal = money(fuelAgg?.totalCost);
+    // Profit for the range: what was invoiced, minus petrol and shop expenses
+    const netProfit = money(billed - petrolTotal - expenseTotal);
+
     return {
       range: { startDate: startDay, endDate: endDay },
 
@@ -223,6 +266,21 @@ export class DashboardService {
           lowStockCount,
           pendingReviewCount,
         },
+        expenses: {
+          total: expenseTotal,
+          entries: num(expenseAgg?.entries),
+        },
+        fuel: {
+          total: petrolTotal,
+          litres: money(fuelAgg?.totalLitres),
+          refills: num(fuelAgg?.refills),
+        },
+        profit: {
+          revenue: billed,
+          petrol: petrolTotal,
+          expenses: expenseTotal,
+          net: netProfit,
+        },
       },
 
       revenueByMonth: revenueByMonth.map((r) => ({
@@ -237,6 +295,16 @@ export class DashboardService {
         qty: num(r.qty),
         spend: money(r.spend),
         challans: num(r.challans),
+      })),
+
+      recentExpenses: expenseRows.map((e) => ({
+        id: e.id,
+        cost: money(e.cost),
+        shopName: e.shopName,
+        shopNumber: e.shopNumber ?? null,
+        description: e.description ?? null,
+        spentAt: e.spentAt,
+        technician: e.technician ? { id: e.technician.id, name: e.technician.name } : null,
       })),
 
       challans: challans.map((c) => ({

@@ -15,6 +15,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { ServicesModule } from './services/services.module';
 import { FuelLogsModule } from './fuel-logs/fuel-logs.module';
+import { ExpensesModule } from './expenses/expenses.module';
 import { HealthController } from './health/health.controller';
 
 @Module({
@@ -56,6 +57,7 @@ import { HealthController } from './health/health.controller';
     DashboardModule,
     ServicesModule,
     FuelLogsModule,
+    ExpensesModule,
   ],
   controllers: [HealthController],
 })

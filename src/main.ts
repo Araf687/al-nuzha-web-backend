@@ -61,6 +61,7 @@ async function bootstrap() {
     .addTag('services', 'Services with thumbnail images')
     .addTag('reviews', 'Customer reviews')
     .addTag('fuel-logs', 'Car fuel refills — litres, cost, date')
+    .addTag('expenses', 'General expenses — cost, shop, description, date')
     .addTag('notifications', 'Notification log')
     .build();
 
