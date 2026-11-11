@@ -18,6 +18,13 @@ export class UpdatePaymentDto {
   @IsOptional() @IsString() paymentMethod?: string;
 }
 
+class InvoiceQueryDto {
+  @IsOptional() @IsEnum(PaymentStatus) status?: PaymentStatus;
+  @IsOptional() @IsString() search?: string;
+  @IsOptional() @IsString() page?: string;
+  @IsOptional() @IsString() limit?: string;
+}
+
 @ApiTags('invoices')
 @Controller('invoices')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -26,9 +33,19 @@ export class InvoicesController {
   constructor(private svc: InvoicesService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Get all invoices (admin)' })
+  @ApiOperation({ summary: 'Invoices with totals, one page at a time (admin)' })
   @ApiQuery({ name: 'status', enum: PaymentStatus, required: false })
-  findAll(@Query('status') status?: PaymentStatus) { return this.svc.findAll(status); }
+  @ApiQuery({ name: 'search', required: false, description: 'Invoice ref, customer name or phone' })
+  @ApiQuery({ name: 'page', required: false, description: 'Defaults to 1' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Defaults to 25, capped at 100' })
+  findAll(@Query() q: InvoiceQueryDto) {
+    return this.svc.findAll({
+      status: q.status,
+      search: q.search,
+      page: q.page ? Number(q.page) : undefined,
+      limit: q.limit ? Number(q.limit) : undefined,
+    });
+  }
 
   @Get('my-invoices')
   @ApiOperation({ summary: 'Get logged-in customer\'s invoices' })

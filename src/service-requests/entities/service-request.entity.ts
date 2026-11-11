@@ -29,6 +29,10 @@ export class ServiceRequest {
   @Column()
   serviceType: string;
 
+  // Individual services entered one by one in the technician app; serviceType holds them comma-joined
+  @Column('text', { array: true, nullable: true })
+  serviceItems: string[];
+
   @Column({ nullable: true })
   equipmentType: string; // AC | Refrigerator | Freezer
 

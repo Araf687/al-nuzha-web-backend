@@ -12,6 +12,13 @@ export class JobService {
   @Column()
   serviceName: string;
 
+  @Column('decimal', { precision: 10, scale: 2, default: 1 })
+  quantity: number;
+
+  @Column('decimal', { precision: 10, scale: 2, default: 0 })
+  unitPrice: number;
+
+  // Line total: quantity × unitPrice
   @Column('decimal', { precision: 10, scale: 2, default: 0 })
   labourCost: number;
 

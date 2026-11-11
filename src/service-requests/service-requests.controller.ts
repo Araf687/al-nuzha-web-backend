@@ -1,19 +1,25 @@
 import {
-  Controller, Get, Post, Patch, Body, Param,
-  Query, UseGuards, Request,
+  Controller, Get, Post, Patch, Delete, Body, Param,
+  Query, UseGuards, Request, ParseUUIDPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import {
   IsString, IsOptional, IsEnum, IsNumber, MinLength,
+  IsArray, ArrayMinSize, IsNotEmpty,
 } from 'class-validator';
 import { ServiceRequestsService } from './service-requests.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+import { Roles } from '../common/decorators/roles.decorator';
 import { RequestStatus, RequestSource } from './entities/service-request.entity';
 
 class CreateServiceRequestDto {
   @IsString() name: string;
   @IsString() phone: string;
-  @IsString() serviceType: string;
+  // Either serviceType or serviceItems is required; service derives serviceType from the items
+  @IsOptional() @IsString() serviceType?: string;
+  @IsOptional() @IsArray() @ArrayMinSize(1) @IsString({ each: true }) @IsNotEmpty({ each: true })
+  serviceItems?: string[];
   @IsOptional() @IsString() problemDescription?: string;
   @IsOptional() @IsString() address?: string;
   @IsOptional() @IsString() equipmentType?: string;
@@ -36,6 +42,23 @@ class AssignDto {
 
 class UpdateStatusDto {
   @IsEnum(RequestStatus) status: RequestStatus;
+}
+
+class UpdateServiceRequestDto {
+  @IsOptional() @IsString() serviceType?: string;
+  @IsOptional() @IsArray() @ArrayMinSize(1) @IsString({ each: true }) @IsNotEmpty({ each: true })
+  serviceItems?: string[];
+  @IsOptional() @IsString() problemDescription?: string;
+  @IsOptional() @IsString() address?: string;
+  @IsOptional() @IsString() equipmentType?: string;
+  @IsOptional() @IsString() equipmentBrand?: string;
+  @IsOptional() @IsString() equipmentModel?: string;
+  @IsOptional() @IsNumber() lat?: number;
+  @IsOptional() @IsNumber() lng?: number;
+  @IsOptional() @IsString() preferredTime?: string;
+  @IsOptional() @IsEnum(RequestStatus) status?: RequestStatus;
+  // Empty string clears the assignment; a uuid moves the job to that technician
+  @IsOptional() @IsString() technicianId?: string;
 }
 
 @ApiTags('service-requests')
@@ -68,18 +91,33 @@ export class ServiceRequestsController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all service requests (admin)' })
-  @ApiQuery({ name: 'status', required: false })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    description:
+      'One or more of pending, assigned, in_progress, completed, cancelled, due — comma separated. ' +
+      '`due` means the job\'s invoice still has an unpaid balance.',
+  })
   @ApiQuery({ name: 'technicianId', required: false })
   @ApiQuery({ name: 'isRecurring', required: false })
+  @ApiQuery({ name: 'search', required: false, description: 'Job id or ref, customer name, phone, area or service type' })
+  @ApiQuery({ name: 'page', required: false, description: 'Defaults to 1' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Defaults to 25, capped at 100' })
   findAll(
     @Query('status') status?: string,
     @Query('technicianId') technicianId?: string,
     @Query('isRecurring') isRecurring?: string,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
     return this.svc.findAll({
       status,
       technicianId,
       isRecurring: isRecurring !== undefined ? isRecurring === 'true' : undefined,
+      search,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
     });
   }
 
@@ -122,5 +160,23 @@ export class ServiceRequestsController {
   @ApiOperation({ summary: 'Update job status' })
   updateStatus(@Param('id') id: string, @Body() dto: UpdateStatusDto) {
     return this.svc.updateStatus(id, dto.status);
+  }
+
+  @Patch(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Edit a job (admin); every field optional' })
+  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateServiceRequestDto) {
+    return this.svc.update(id, dto);
+  }
+
+  @Delete(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Delete a job (admin); refused once it has a job report' })
+  remove(@Param('id', ParseUUIDPipe) id: string) {
+    return this.svc.remove(id);
   }
 }

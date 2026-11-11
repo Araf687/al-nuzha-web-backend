@@ -14,6 +14,8 @@ class JobPartDto {
 
 class JobServiceDto {
   @IsString() serviceName: string;
+  @IsOptional() @IsNumber() quantity?: number;
+  @IsOptional() @IsNumber() unitPrice?: number;
   @IsNumber() labourCost: number;
   @IsOptional() @IsString() notes?: string;
 }

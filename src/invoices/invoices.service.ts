@@ -3,13 +3,102 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Invoice, PaymentStatus } from './entities/invoice.entity';
 
+// Page size for the admin invoice list; a client asking for more is capped
+const DEFAULT_PAGE_SIZE = 25;
+const MAX_PAGE_SIZE = 100;
+
+export interface InvoiceQuery {
+  status?: PaymentStatus;
+  // Matches invoice ref, customer name or phone
+  search?: string;
+  page?: number;
+  limit?: number;
+}
+
+function money(v: unknown) {
+  const n = Number(v ?? 0);
+  return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0;
+}
+
 @Injectable()
 export class InvoicesService {
   constructor(@InjectRepository(Invoice) private repo: Repository<Invoice>) {}
 
-  findAll(status?: PaymentStatus) {
-    const where = status ? { paymentStatus: status } : {};
-    return this.repo.find({ where, order: { issuedAt: 'DESC' } });
+  /**
+   * One page of invoices. `summary` covers everything the filters match, not
+   * just this page, so the totals beside the list stay right while paging.
+   */
+  async findAll(filters: InvoiceQuery = {}) {
+    const page = Math.max(1, Math.trunc(Number(filters.page) || 1));
+    const limit = Math.min(MAX_PAGE_SIZE, Math.max(1, Math.trunc(Number(filters.limit) || DEFAULT_PAGE_SIZE)));
+
+    const [data, totals] = await Promise.all([
+      this.invoiceQuery(filters)
+        .orderBy('inv.issuedAt', 'DESC')
+        .offset((page - 1) * limit)
+        .limit(limit)
+        .getMany(),
+
+      this.invoiceQuery(filters)
+        .select('COUNT(*)', 'invoices')
+        .addSelect('COALESCE(SUM(inv.total), 0)', 'totalBilled')
+        .addSelect(
+          `COALESCE(SUM(CASE WHEN inv."paymentStatus" = '${PaymentStatus.PAID}'
+                             THEN inv.total ELSE inv."advanceAmount" END), 0)`,
+          'collected',
+        )
+        .addSelect(
+          `COALESCE(SUM(CASE WHEN inv."paymentStatus" = '${PaymentStatus.PAID}'
+                             THEN 0 ELSE GREATEST(inv.total - inv."advanceAmount", 0) END), 0)`,
+          'outstanding',
+        )
+        .addSelect(`COUNT(*) FILTER (WHERE inv."paymentStatus" = '${PaymentStatus.PAID}')`, 'paidCount')
+        .getRawOne<{
+          invoices: string; totalBilled: string; collected: string;
+          outstanding: string; paidCount: string;
+        }>(),
+    ]);
+
+    const total = Number(totals?.invoices ?? 0);
+
+    return {
+      data,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+      },
+      summary: {
+        invoices: total,
+        totalBilled: money(totals?.totalBilled),
+        collected: money(totals?.collected),
+        outstanding: money(totals?.outstanding),
+        paidCount: Number(totals?.paidCount ?? 0),
+      },
+    };
+  }
+
+  /** Filtered but unpaged — shared by the list and its totals. */
+  private invoiceQuery({ status, search }: InvoiceQuery) {
+    const qb = this.repo
+      .createQueryBuilder('inv')
+      // The customer relation is eager, and a whole-entity load would carry
+      // their passwordHash into the response
+      .leftJoin('inv.customer', 'customer')
+      .addSelect(['customer.id', 'customer.name', 'customer.phone', 'customer.email']);
+
+    if (status) qb.andWhere('inv.paymentStatus = :status', { status });
+
+    const q = search?.trim();
+    if (q) {
+      qb.andWhere(
+        '(inv.invoiceRef ILIKE :q OR customer.name ILIKE :q OR customer.phone ILIKE :q)',
+        { q: `%${q}%` },
+      );
+    }
+
+    return qb;
   }
 
   findByCustomer(customerId: string) {

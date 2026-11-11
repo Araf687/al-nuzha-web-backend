@@ -67,6 +67,8 @@ export class DashboardService {
       expenseAgg,
       fuelAgg,
       expenseRows,
+      duesAgg,
+      duesByCustomer,
     ] = await Promise.all([
       // ── Jobs grouped by status, within range ──────────────────────────
       this.requestsRepo
@@ -215,6 +217,38 @@ export class DashboardService {
         order: { spentAt: 'DESC', createdAt: 'DESC' },
         take: 10,
       }),
+
+      // ── Money still owed, across every unpaid invoice ─────────────────
+      // Deliberately not range-scoped: a due from an older invoice is still
+      // owed today, so the date filter must not hide it
+      this.invoicesRepo
+        .createQueryBuilder('inv')
+        .select('COUNT(*)', 'invoiceCount')
+        .addSelect('COUNT(DISTINCT inv.customerId)', 'customerCount')
+        .addSelect('COALESCE(SUM(GREATEST(inv.total - inv.advanceAmount, 0)), 0)', 'total')
+        .where('inv.paymentStatus != :paid', { paid: PaymentStatus.PAID })
+        .getRawOne<{ invoiceCount: string; customerCount: string; total: string }>(),
+
+      // ── Who owes it, biggest debt first ───────────────────────────────
+      this.invoicesRepo
+        .createQueryBuilder('inv')
+        .innerJoin('inv.customer', 'c')
+        .select('c.id', 'customerId')
+        .addSelect('c.name', 'name')
+        .addSelect('c.phone', 'phone')
+        .addSelect('COUNT(*)', 'invoiceCount')
+        .addSelect('COALESCE(SUM(GREATEST(inv.total - inv.advanceAmount, 0)), 0)', 'total')
+        .where('inv.paymentStatus != :paid', { paid: PaymentStatus.PAID })
+        .groupBy('c.id')
+        .addGroupBy('c.name')
+        .addGroupBy('c.phone')
+        .having('COALESCE(SUM(GREATEST(inv.total - inv.advanceAmount, 0)), 0) > 0')
+        .orderBy('SUM(GREATEST(inv.total - inv.advanceAmount, 0))', 'DESC')
+        .limit(10)
+        .getRawMany<{
+          customerId: string; name: string; phone: string;
+          invoiceCount: string; total: string;
+        }>(),
     ]);
 
     // ── Fold job status rows ────────────────────────────────────────────
@@ -275,6 +309,12 @@ export class DashboardService {
           litres: money(fuelAgg?.totalLitres),
           refills: num(fuelAgg?.refills),
         },
+        // What customers still owe, all time — not limited by the date filter
+        dues: {
+          total: money(duesAgg?.total),
+          invoiceCount: num(duesAgg?.invoiceCount),
+          customerCount: num(duesAgg?.customerCount),
+        },
         profit: {
           revenue: billed,
           petrol: petrolTotal,
@@ -295,6 +335,15 @@ export class DashboardService {
         qty: num(r.qty),
         spend: money(r.spend),
         challans: num(r.challans),
+      })),
+
+      // Customers who still owe money, biggest debt first (all time, like stats.dues)
+      customerDues: duesByCustomer.map((r) => ({
+        customerId: r.customerId,
+        name: r.name,
+        phone: r.phone,
+        invoiceCount: num(r.invoiceCount),
+        total: money(r.total),
       })),
 
       recentExpenses: expenseRows.map((e) => ({

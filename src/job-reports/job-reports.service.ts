@@ -123,7 +123,12 @@ export class JobReportsService {
     const services: JobServiceEntity[] = (dto.services || []).map((s: any) => {
       const js = new JobServiceEntity();
       js.serviceName = s.serviceName;
-      js.labourCost = s.labourCost || 0;
+      // Older clients send only labourCost — treat it as a single unit at that price
+      js.quantity = s.quantity ?? 1;
+      js.unitPrice = s.unitPrice ?? (s.labourCost || 0);
+      js.labourCost = s.quantity != null && s.unitPrice != null
+        ? s.quantity * s.unitPrice
+        : s.labourCost || 0;
       js.notes = s.notes;
       return js;
     });
@@ -137,12 +142,15 @@ export class JobReportsService {
     });
     const expensesTotal = expenses.reduce((s, e) => s + Number(e.amount), 0);
 
-    // Totals — labourCharge holds the technician's total service cost;
-    // parts are recorded on the report but not billed to the customer
-    const labourCharge = dto.labourCharge || 150;
-    const subtotal = labourCharge + expensesTotal;
-    const vatAmount = subtotal * VAT_RATE;
-    const grandTotal = subtotal + vatAmount;
+    // Totals — labourCharge is the sum of the service lines (falls back to the
+    // client's figure for older apps); parts are recorded but not billed
+    const servicesTotal = services.reduce((s, js) => s + Number(js.labourCost), 0);
+    const labourCharge = servicesTotal > 0 ? servicesTotal : dto.labourCharge || 150;
+    // Entered amounts already include VAT — pull the VAT portion out of the total
+    // Only services are billed; extra expenses are recorded (extraExpensesTotal) but not charged
+    const grandTotal = labourCharge;
+    const vatAmount = Math.round((grandTotal * VAT_RATE / (1 + VAT_RATE)) * 100) / 100;
+    const subtotal = grandTotal - vatAmount;
 
     // Save job report
     const paymentType = dto.paymentType;
