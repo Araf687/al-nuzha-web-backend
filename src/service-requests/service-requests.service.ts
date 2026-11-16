@@ -5,6 +5,13 @@ import { ServiceRequest, RequestStatus, RequestSource } from './entities/service
 import { Customer } from '../customers/entities/customer.entity';
 import { Technician } from '../technicians/entities/technician.entity';
 import { PushNotificationService } from '../common/push-notification.service';
+import { JobReport } from '../job-reports/entities/job-report.entity';
+import { JobService } from '../job-reports/entities/job-service.entity';
+import { Invoice, PaymentStatus } from '../invoices/entities/invoice.entity';
+import { findCustomerByPhone, requireUaePhone } from '../common/phone';
+
+// Same rule as the job report: only services are billed, and the amount entered includes VAT
+const VAT_RATE = 0.05;
 
 // Page size for the admin job list; a client asking for more is capped
 const DEFAULT_PAGE_SIZE = 25;
@@ -58,12 +65,20 @@ export class ServiceRequestsService {
       throw new BadRequestException('serviceType or serviceItems is required');
     }
 
-    // Upsert customer by phone
-    let customer = await this.customersRepo.findOne({ where: { phone: dto.phone } });
+    // House no is required for jobs made by staff (admin panel / technician app).
+    // The public website booking form does not ask for it yet.
+    const houseNo: string | undefined = typeof dto.houseNo === 'string' ? dto.houseNo.trim() || undefined : undefined;
+    if (!houseNo && (dto.source ?? RequestSource.WEBSITE) !== RequestSource.WEBSITE) {
+      throw new BadRequestException('House no is required');
+    }
+
+    // Upsert customer by phone (UAE only, stored as +971…)
+    const phone = requireUaePhone(dto.phone);
+    let customer = await findCustomerByPhone(this.customersRepo.manager, phone);
     if (!customer) {
       customer = this.customersRepo.create({
         name: dto.name,
-        phone: dto.phone,
+        phone,
         address: dto.address,
         lat: dto.lat,
         lng: dto.lng,
@@ -81,6 +96,7 @@ export class ServiceRequestsService {
       equipmentModel: dto.equipmentModel,
       problemDescription: dto.problemDescription,
       address: dto.address || customer.address,
+      houseNo,
       lat: dto.lat,
       lng: dto.lng,
       preferredTime: dto.preferredTime,
@@ -120,6 +136,7 @@ export class ServiceRequestsService {
       equipmentModel: parent.equipmentModel,
       problemDescription: recurringDescription,
       address: parent.address,
+      houseNo: parent.houseNo,
       lat: parent.lat,
       lng: parent.lng,
       customer: parent.customer,
@@ -289,6 +306,9 @@ export class ServiceRequestsService {
   async update(
     id: string,
     dto: {
+      name?: string;
+      phone?: string;
+      serviceLines?: { serviceName: string; quantity: number; unitPrice: number }[];
       serviceType?: string;
       serviceItems?: string[];
       equipmentType?: string;
@@ -296,6 +316,7 @@ export class ServiceRequestsService {
       equipmentModel?: string;
       problemDescription?: string;
       address?: string;
+      houseNo?: string;
       lat?: number;
       lng?: number;
       preferredTime?: string;
@@ -315,6 +336,13 @@ export class ServiceRequestsService {
     }
 
     // Only the keys the caller sent are touched
+    // House no can be changed but never cleared
+    if (dto.houseNo !== undefined) {
+      const houseNo = dto.houseNo.trim();
+      if (!houseNo) throw new BadRequestException('House no is required');
+      req.houseNo = houseNo;
+    }
+
     const plain = ['equipmentType', 'equipmentBrand', 'equipmentModel', 'problemDescription',
       'address', 'lat', 'lng', 'preferredTime'] as const;
     for (const key of plain) {
@@ -342,6 +370,64 @@ export class ServiceRequestsService {
         // Only a technician who was not already on the job gets a push
         if (dto.technicianId !== previousTechnicianId) notifyTechnicianId = dto.technicianId;
       }
+    }
+
+    // Service lines (with qty / price) live on the job report; re-total the report and its invoice
+    if (dto.serviceLines !== undefined) {
+      const report = await this.repo.manager.findOne(JobReport, {
+        where: { serviceRequest: { id } },
+        relations: ['services', 'invoice'],
+      });
+      if (!report) throw new BadRequestException('This job has no report yet, so it has no prices to edit');
+
+      const lines = dto.serviceLines.map((l) => ({
+        serviceName: l.serviceName.trim(),
+        quantity: l.quantity,
+        unitPrice: l.unitPrice,
+        labourCost: Math.round(l.quantity * l.unitPrice * 100) / 100,
+      }));
+      const grandTotal = lines.reduce((s, l) => s + l.labourCost, 0);
+      const vat = Math.round((grandTotal * VAT_RATE / (1 + VAT_RATE)) * 100) / 100;
+
+      await this.repo.manager.transaction(async (m) => {
+        if (report.services?.length) await m.delete(JobService, report.services.map((sv) => sv.id));
+        await m.save(JobService, lines.map((l) => m.create(JobService, { ...l, jobReport: { id: report.id } as JobReport })));
+        await m.update(JobReport, report.id, { labourCharge: grandTotal, grandTotal, vatAmount: vat });
+        const inv = report.invoice;
+        if (inv) {
+          const advance = Number(inv.advanceAmount) || 0;
+          // A paid invoice stays paid; otherwise the status follows the new total
+          const paymentStatus = inv.paymentStatus === PaymentStatus.PAID
+            ? PaymentStatus.PAID
+            : advance >= grandTotal ? PaymentStatus.PAID : advance > 0 ? PaymentStatus.PARTIAL : PaymentStatus.UNPAID;
+          await m.update(Invoice, inv.id, { subtotal: grandTotal - vat, vat, total: grandTotal, paymentStatus });
+        }
+      });
+
+      // The job's own service list follows the edited lines
+      req.serviceItems = lines.map((l) => l.serviceName);
+      req.serviceType = req.serviceItems.join(', ');
+    }
+
+    // Name and phone live on the customer record (phone is its unique key)
+    if (dto.name !== undefined || dto.phone !== undefined) {
+      const customer = req.customer;
+      if (dto.name !== undefined) {
+        const name = dto.name.trim();
+        if (!name) throw new BadRequestException('Customer name is required');
+        customer.name = name;
+      }
+      if (dto.phone !== undefined) {
+        const phone = requireUaePhone(dto.phone);
+        if (phone !== customer.phone) {
+          const taken = await findCustomerByPhone(this.customersRepo.manager, phone);
+          if (taken && taken.id !== customer.id) {
+            throw new BadRequestException(`Phone ${phone} already belongs to another customer (${taken.name})`);
+          }
+          customer.phone = phone;
+        }
+      }
+      await this.customersRepo.save(customer);
     }
 
     await this.repo.save(req);

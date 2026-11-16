@@ -5,8 +5,9 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import {
   IsString, IsOptional, IsEnum, IsNumber, MinLength,
-  IsArray, ArrayMinSize, IsNotEmpty,
+  IsArray, ArrayMinSize, IsNotEmpty, ValidateNested, Min,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ServiceRequestsService } from './service-requests.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -22,6 +23,7 @@ class CreateServiceRequestDto {
   serviceItems?: string[];
   @IsOptional() @IsString() problemDescription?: string;
   @IsOptional() @IsString() address?: string;
+  @IsOptional() @IsString() houseNo?: string;
   @IsOptional() @IsString() equipmentType?: string;
   @IsOptional() @IsString() equipmentBrand?: string;
   @IsOptional() @IsString() equipmentModel?: string;
@@ -44,12 +46,25 @@ class UpdateStatusDto {
   @IsEnum(RequestStatus) status: RequestStatus;
 }
 
+class ServiceLineDto {
+  @IsString() @IsNotEmpty() serviceName: string;
+  @IsNumber() @Min(0) quantity: number;
+  @IsNumber() @Min(0) unitPrice: number;
+}
+
 class UpdateServiceRequestDto {
+  // Reported jobs only: replaces the report's service lines and re-totals the report and invoice
+  @IsOptional() @IsArray() @ArrayMinSize(1) @ValidateNested({ each: true }) @Type(() => ServiceLineDto)
+  serviceLines?: ServiceLineDto[];
+  // Customer details — saved on the customer record, so they change on all of that customer's jobs
+  @IsOptional() @IsString() name?: string;
+  @IsOptional() @IsString() phone?: string;
   @IsOptional() @IsString() serviceType?: string;
   @IsOptional() @IsArray() @ArrayMinSize(1) @IsString({ each: true }) @IsNotEmpty({ each: true })
   serviceItems?: string[];
   @IsOptional() @IsString() problemDescription?: string;
   @IsOptional() @IsString() address?: string;
+  @IsOptional() @IsString() houseNo?: string;
   @IsOptional() @IsString() equipmentType?: string;
   @IsOptional() @IsString() equipmentBrand?: string;
   @IsOptional() @IsString() equipmentModel?: string;

@@ -9,9 +9,13 @@ import { ServiceRequest, RequestSource, RequestStatus } from '../service-request
 import { Part } from '../parts/entities/part.entity';
 import { Invoice, PaymentStatus } from '../invoices/entities/invoice.entity';
 import { Customer } from '../customers/entities/customer.entity';
+import { Technician } from '../technicians/entities/technician.entity';
+import { findCustomerByPhone, normalizeUaePhone, requireUaePhone, UAE_PHONE_ERROR } from '../common/phone';
 
 const VAT_RATE = 0.05;
 
+// Phone in local form for matching: digits only, +971 / 00971 → 0…, +880 → 01…
+// so "+971 50 123 4567" and "0501234567" are the same customer
 @Injectable()
 export class JobReportsService {
   constructor(
@@ -34,11 +38,12 @@ export class JobReportsService {
   }
 
   async submitInstantJob(technicianId: string, dto: any) {
-    let customer = await this.customersRepo.findOne({ where: { phone: dto.phone } });
+    const phone = requireUaePhone(dto.phone);
+    let customer = await findCustomerByPhone(this.customersRepo.manager, phone);
     if (!customer) {
       customer = this.customersRepo.create({
         name: dto.name,
-        phone: dto.phone,
+        phone,
         address: dto.address,
         lat: dto.lat,
         lng: dto.lng,
@@ -71,6 +76,118 @@ export class JobReportsService {
 
     const savedRequest = await this.srRepo.save(sr);
     return this.createCompletedJob(savedRequest, technicianId, dto);
+  }
+
+  // ── Bulk import of past jobs ────────────────────────────────────────────
+  // Each job is created in its own transaction (customer, completed job, report, invoice), so one
+  // bad job does not stop the rest. Billing follows the app: services only, amounts include VAT.
+  async bulkImport(jobs: {
+    jobNo: string; date?: string; name: string; phone: string; address?: string;
+    technicianPhone?: string; paymentType: string; advance?: number;
+    services: { serviceName: string; quantity: number; unitPrice: number }[];
+  }[]) {
+    const created: { jobNo: string; jobRef: string; total: number }[] = [];
+    const errors: { jobNo: string; message: string }[] = [];
+
+    for (const job of jobs) {
+      try {
+        const date = job.date ? new Date(job.date) : new Date();
+        if (Number.isNaN(date.getTime())) throw new Error(`Invalid date "${job.date}"`);
+
+        const lines = job.services.map((l) => ({
+          serviceName: l.serviceName.trim(),
+          quantity: l.quantity,
+          unitPrice: l.unitPrice,
+          labourCost: Math.round(l.quantity * l.unitPrice * 100) / 100,
+        }));
+        const grandTotal = lines.reduce((s, l) => s + l.labourCost, 0);
+        if (grandTotal <= 0) throw new Error('Total is 0 — every service needs a qty and unit price');
+        const vatAmount = Math.round((grandTotal * VAT_RATE / (1 + VAT_RATE)) * 100) / 100;
+
+        const isDue = job.paymentType === 'due';
+        const advance = isDue ? Math.round((job.advance ?? 0) * 100) / 100 : 0;
+        if (advance >= grandTotal) throw new Error(`Advance ${advance} is not less than the total ${grandTotal} — use cash or card`);
+
+        const jobRef = await this.freeJobRef();
+
+        await this.reportsRepo.manager.transaction(async (m) => {
+          const technician = job.technicianPhone?.trim()
+            ? await m.findOne(Technician, { where: { phone: job.technicianPhone.trim() } })
+            : null;
+          if (job.technicianPhone?.trim() && !technician) throw new Error(`No technician with phone ${job.technicianPhone}`);
+
+          // UAE numbers only, saved as +971…. An existing customer (same number, any
+          // formatting) is reused — never added twice — and keeps their saved name
+          const phone = normalizeUaePhone(job.phone);
+          if (!phone) throw new Error(`Phone "${job.phone}": ${UAE_PHONE_ERROR}`);
+          let customer = await findCustomerByPhone(m, phone);
+          if (!customer) {
+            customer = await m.save(m.create(Customer, { name: job.name.trim(), phone, address: job.address?.trim() || undefined }));
+          } else if (!customer.address && job.address?.trim()) {
+            customer.address = job.address.trim();
+            await m.save(customer);
+          }
+
+          const items = lines.map((l) => l.serviceName);
+          const sr = await m.save(m.create(ServiceRequest, {
+            jobRef,
+            source: RequestSource.ADMIN,
+            serviceType: items.join(', '),
+            serviceItems: items,
+            address: job.address?.trim() || customer.address,
+            customer,
+            assignedTechnician: technician ?? undefined,
+            status: RequestStatus.COMPLETED,
+            isRecurring: false,
+            createdAt: date,
+          }));
+
+          const report = await m.save(m.create(JobReport, {
+            serviceRequest: sr,
+            technician: technician ?? undefined,
+            labourCharge: grandTotal,
+            partsTotal: 0,
+            extraExpensesTotal: 0,
+            vatAmount,
+            grandTotal,
+            completedAt: date,
+            createdAt: date,
+            parts: [],
+            expenses: [],
+            services: lines.map((l) => m.create(JobServiceEntity, l)),
+          }));
+
+          await m.save(m.create(Invoice, {
+            invoiceRef: `INV-${jobRef.replace('JOB-', '')}`,
+            jobReport: report,
+            customer,
+            subtotal: grandTotal - vatAmount,
+            vat: vatAmount,
+            total: grandTotal,
+            paymentMethod: job.paymentType,
+            advanceAmount: advance,
+            paymentStatus: isDue ? (advance > 0 ? PaymentStatus.PARTIAL : PaymentStatus.UNPAID) : PaymentStatus.PAID,
+            paidAt: isDue ? null : date,
+            issuedAt: date,
+          }));
+        });
+
+        created.push({ jobNo: job.jobNo, jobRef, total: grandTotal });
+      } catch (e) {
+        errors.push({ jobNo: job.jobNo, message: e instanceof Error ? e.message : String(e) });
+      }
+    }
+
+    return { created, errors };
+  }
+
+  // Random refs can collide once there are many jobs — pick one that is not taken
+  private async freeJobRef(): Promise<string> {
+    for (let i = 0; i < 20; i++) {
+      const ref = this.generateJobRef();
+      if (!(await this.srRepo.exists({ where: { jobRef: ref } }))) return ref;
+    }
+    throw new Error('Could not find a free job number');
   }
 
   private generateJobRef(): string {

@@ -49,6 +49,10 @@ export class ServiceRequest {
   @Column({ nullable: true })
   address: string;
 
+  // Free text: villa / flat / building number, kept apart from the area address
+  @Column({ nullable: true })
+  houseNo: string;
+
   @Column('decimal', { precision: 10, scale: 7, nullable: true })
   lat: number;
 
